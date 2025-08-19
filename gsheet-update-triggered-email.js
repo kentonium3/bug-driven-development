@@ -88,9 +88,6 @@ function sendDailyUpdate() {
       // A thread ID exists, so try to reply to the existing thread.
       const thread = GmailApp.getThreadById(threadId);
       if (thread) {
-        // Log that a matching thread was found and we're replying to it.
-        Logger.log(`Found existing thread. Replying to thread ID: ${threadId}`);
-        
         // Fix: Use the more reliable sendEmail method to ensure the message goes to the group.
         // Get the messages in the thread to build the 'references' header.
         const messages = thread.getMessages();
@@ -103,26 +100,24 @@ function sendDailyUpdate() {
           references: messageIds.join(" ")
         });
         
+        Logger.log(`Replied to existing thread: ${threadId}`);
       } else {
         // The thread was not found (e.g., deleted), so we start a new one.
-        // Log that the stored ID didn't match an existing thread.
-        Logger.log(`Stored thread ID (${threadId}) not found. Starting a new thread.`);
+        Logger.log("Thread not found. Starting a new thread.");
         
         // Fix: Use createDraft and send() to reliably get the thread ID.
         const draft = GmailApp.createDraft(recipientEmail, subject, "", {htmlBody: htmlBody});
         const newThread = draft.send().getThread();
         properties.setProperty('riseTrackerThreadId', newThread.getId());
-        Logger.log(`Created new thread with ID: ${newThread.getId()}`);
+        Logger.log(`Created new thread: ${newThread.getId()}`);
       }
     } else {
       // No thread ID exists, so this is the first run.
-      Logger.log("No existing thread ID found. Starting the first thread.");
-      
       // Fix: Use createDraft and send() to reliably get the thread ID.
       const draft = GmailApp.createDraft(recipientEmail, subject, "", {htmlBody: htmlBody});
       const newThread = draft.send().getThread();
       properties.setProperty('riseTrackerThreadId', newThread.getId());
-      Logger.log(`Created first thread with ID: ${newThread.getId()}`);
+      Logger.log(`Created first thread: ${newThread.getId()}`);
     }
     
     Logger.log("Email update sent successfully!");
