@@ -80,25 +80,24 @@ function sendDailyUpdate() {
   
   // 6. Send the email. This logic now handles replying to an existing thread or creating a new one.
   try {
-    // Retrieve the stored thread ID from script properties.
     const properties = PropertiesService.getScriptProperties();
-    const threadId = properties.getProperty('riseTrackerThreadId');
+    const currentThreadId = properties.getProperty('riseTrackerThreadId');
     let thread = null;
     
-    if (threadId) {
+    if (currentThreadId) {
       // Use a nested try/catch to handle potential errors with the thread ID.
       try {
-        thread = GmailApp.getThreadById(threadId);
+        thread = GmailApp.getThreadById(currentThreadId);
       } catch (e) {
         // If the thread ID is invalid or the thread was deleted, the script will log the error
         // and 'thread' will remain null, leading to a new thread being created.
-        Logger.log(`Error finding stored thread ID (${threadId}): ${e.toString()}`);
+        Logger.log(`Error finding stored thread ID (${currentThreadId}): ${e.toString()}`);
       }
     }
 
     if (thread) {
       // A thread ID exists and is valid, so try to reply to the existing thread.
-      Logger.log(`Found existing thread. Replying to thread ID: ${threadId}`);
+      Logger.log(`Found existing thread. Replying to thread ID: ${currentThreadId}`);
       
       // Fix: Use the more reliable sendEmail method to ensure the message goes to the group.
       // Get the messages in the thread to build the 'references' header.
@@ -113,10 +112,16 @@ function sendDailyUpdate() {
       });
       
     } else {
-      // The thread was not found (e.g., deleted), or the threadId was invalid, so we start a new one.
-      Logger.log("No valid existing thread found. Starting a new thread.");
+      // The thread was not found (e.g., deleted), or the threadId was invalid.
+      // Store the old ID for debugging before creating a new thread.
+      if (currentThreadId) {
+        properties.setProperty('lastKnownRiseTrackerThreadId', currentThreadId);
+        Logger.log(`Previous thread ID (${currentThreadId}) stored for debugging. Starting a new thread.`);
+      } else {
+        Logger.log("No previous thread ID found. Starting a new thread.");
+      }
       
-      // Fix: Use createDraft and send() to reliably get the thread ID.
+      // Use createDraft and send() to reliably get the thread ID.
       const draft = GmailApp.createDraft(recipientEmail, subject, "", {htmlBody: htmlBody});
       const newThread = draft.send().getThread();
       properties.setProperty('riseTrackerThreadId', newThread.getId());
