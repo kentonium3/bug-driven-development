@@ -83,41 +83,44 @@ function sendDailyUpdate() {
     // Retrieve the stored thread ID from script properties.
     const properties = PropertiesService.getScriptProperties();
     const threadId = properties.getProperty('riseTrackerThreadId');
-
+    let thread = null;
+    
     if (threadId) {
-      // A thread ID exists, so try to reply to the existing thread.
-      const thread = GmailApp.getThreadById(threadId);
-      if (thread) {
-        // Fix: Use the more reliable sendEmail method to ensure the message goes to the group.
-        // Get the messages in the thread to build the 'references' header.
-        const messages = thread.getMessages();
-        const lastMessageId = messages[messages.length - 1].getId();
-        const messageIds = messages.map(msg => msg.getId());
-
-        GmailApp.sendEmail(recipientEmail, subject, "", {
-          htmlBody: htmlBody,
-          inReplyTo: lastMessageId,
-          references: messageIds.join(" ")
-        });
-        
-        Logger.log(`Replied to existing thread: ${threadId}`);
-      } else {
-        // The thread was not found (e.g., deleted), so we start a new one.
-        Logger.log("Thread not found. Starting a new thread.");
-        
-        // Fix: Use createDraft and send() to reliably get the thread ID.
-        const draft = GmailApp.createDraft(recipientEmail, subject, "", {htmlBody: htmlBody});
-        const newThread = draft.send().getThread();
-        properties.setProperty('riseTrackerThreadId', newThread.getId());
-        Logger.log(`Created new thread: ${newThread.getId()}`);
+      // Use a nested try/catch to handle potential errors with the thread ID.
+      try {
+        thread = GmailApp.getThreadById(threadId);
+      } catch (e) {
+        // If the thread ID is invalid or the thread was deleted, the script will log the error
+        // and 'thread' will remain null, leading to a new thread being created.
+        Logger.log(`Error finding stored thread ID (${threadId}): ${e.toString()}`);
       }
+    }
+
+    if (thread) {
+      // A thread ID exists and is valid, so try to reply to the existing thread.
+      Logger.log(`Found existing thread. Replying to thread ID: ${threadId}`);
+      
+      // Fix: Use the more reliable sendEmail method to ensure the message goes to the group.
+      // Get the messages in the thread to build the 'references' header.
+      const messages = thread.getMessages();
+      const lastMessageId = messages[messages.length - 1].getId();
+      const messageIds = messages.map(msg => msg.getId());
+
+      GmailApp.sendEmail(recipientEmail, subject, "", {
+        htmlBody: htmlBody,
+        inReplyTo: lastMessageId,
+        references: messageIds.join(" ")
+      });
+      
     } else {
-      // No thread ID exists, so this is the first run.
+      // The thread was not found (e.g., deleted), or the threadId was invalid, so we start a new one.
+      Logger.log("No valid existing thread found. Starting a new thread.");
+      
       // Fix: Use createDraft and send() to reliably get the thread ID.
       const draft = GmailApp.createDraft(recipientEmail, subject, "", {htmlBody: htmlBody});
       const newThread = draft.send().getThread();
       properties.setProperty('riseTrackerThreadId', newThread.getId());
-      Logger.log(`Created first thread: ${newThread.getId()}`);
+      Logger.log(`Created new thread with ID: ${newThread.getId()}`);
     }
     
     Logger.log("Email update sent successfully!");
