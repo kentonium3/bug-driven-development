@@ -84,23 +84,20 @@ function sendDailyUpdate() {
     const currentThreadId = properties.getProperty('riseTrackerThreadId');
     let thread = null;
     
+    // Check if a thread ID exists and try to find the thread using a robust search.
     if (currentThreadId) {
-      // Use a nested try/catch to handle potential errors with the thread ID.
-      try {
-        thread = GmailApp.getThreadById(currentThreadId);
-      } catch (e) {
-        // If the thread ID is invalid or the thread was deleted, the script will log the error
-        // and 'thread' will remain null, leading to a new thread being created.
-        Logger.log(`Error finding stored thread ID (${currentThreadId}): ${e.toString()}`);
+      // Use the search function to find the thread by ID, regardless of its labels.
+      // This is a more reliable method than getThreadById().
+      const threads = GmailApp.search("thread:" + currentThreadId);
+      if (threads.length > 0) {
+        thread = threads[0];
       }
     }
 
     if (thread) {
-      // A thread ID exists and is valid, so try to reply to the existing thread.
+      // A thread ID exists and is valid, so reply to the existing thread.
       Logger.log(`Found existing thread. Replying to thread ID: ${currentThreadId}`);
       
-      // Fix: Use the more reliable sendEmail method to ensure the message goes to the group.
-      // Get the messages in the thread to build the 'references' header.
       const messages = thread.getMessages();
       const lastMessageId = messages[messages.length - 1].getId();
       const messageIds = messages.map(msg => msg.getId());
@@ -112,8 +109,7 @@ function sendDailyUpdate() {
       });
       
     } else {
-      // The thread was not found (e.g., deleted), or the threadId was invalid.
-      // Store the old ID for debugging before creating a new thread.
+      // The thread was not found, so create a new one.
       if (currentThreadId) {
         properties.setProperty('lastKnownRiseTrackerThreadId', currentThreadId);
         Logger.log(`Previous thread ID (${currentThreadId}) stored for debugging. Starting a new thread.`);
