@@ -307,7 +307,6 @@ function replyToExistingThread(threadId, htmlBody) {
   Logger.log(`7. Attempting to reply to thread: ${threadId}`);
   
   try {
-    // Try to get the thread directly first
     let thread = null;
     
     try {
@@ -316,7 +315,6 @@ function replyToExistingThread(threadId, htmlBody) {
       Logger.log(`7. Direct thread lookup failed: ${directError.toString()}`);
       Logger.log("7. Trying alternative search method...");
       
-      // Try search method as fallback
       const threads = GmailApp.search("thread:" + threadId);
       if (threads.length > 0) {
         thread = threads[0];
@@ -333,20 +331,48 @@ function replyToExistingThread(threadId, htmlBody) {
     Logger.log(`7. Found thread with ${messages.length} messages`);
     Logger.log(`7. Thread subject: "${thread.getFirstMessageSubject()}"`);
     
-    // Get the last message and use Gmail's NATIVE REPLY method
+    // Get the first message for threading headers
+    const firstMessage = messages[0];
     const lastMessage = messages[messages.length - 1];
-    Logger.log(`7. Last message from: ${lastMessage.getFrom()}`);
-    Logger.log(`7. Last message date: ${lastMessage.getDate()}`);
     
-    // THIS IS THE KEY FIX: Use Gmail's native reply method with forced recipients
-    // No need to extract Message-IDs or set threading headers manually!
-    // IMPORTANT: Force the email to go to the group, not just reply to last sender
-    lastMessage.reply("", {
-      htmlBody: htmlBody,
-      to: CONFIG.recipientEmail  // Ensure it always goes to the group
-    });
+    // Extract Message-ID for threading
+    const rawContent = firstMessage.getRawContent();
+    const messageIdMatch = rawContent.match(/Message-ID:\s*<([^>]+)>/i);
+    const messageId = messageIdMatch ? messageIdMatch[1] : null;
     
-    Logger.log("7. ✅ Native reply sent successfully");
+    if (!messageId) {
+      Logger.log("7. ⚠️ Could not extract Message-ID, falling back to reply method");
+      // Fallback - but this won't work as intended
+      lastMessage.reply("", {htmlBody: htmlBody});
+      return true;
+    }
+    
+    Logger.log(`7. First message ID: ${messageId}`);
+    
+    // Build References header for threading
+    let references = `<${messageId}>`;
+    
+    // Extract existing References if any
+    const referencesMatch = rawContent.match(/References:\s*([^\r\n]+)/i);
+    if (referencesMatch) {
+      references = referencesMatch[1].trim() + " " + references;
+    }
+    
+    // Use sendEmail with proper headers to force group recipient
+    GmailApp.sendEmail(
+      CONFIG.recipientEmail,  // This WILL go to the group
+      "Re: " + thread.getFirstMessageSubject(),
+      "",
+      {
+        htmlBody: htmlBody,
+        headers: {
+          "In-Reply-To": `<${messageId}>`,
+          "References": references
+        }
+      }
+    );
+    
+    Logger.log("7. ✅ Reply sent to group with threading headers");
     return true;
     
   } catch (error) {
