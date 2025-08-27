@@ -373,6 +373,7 @@ function replyToExistingThread(threadId, htmlBody) {
     );
     
     Logger.log("7. ✅ Reply sent to group with threading headers");
+    Logger.log(`7. Email sent to: ${CONFIG.recipientEmail} (group address enforced)`);
     return true;
     
   } catch (error) {
